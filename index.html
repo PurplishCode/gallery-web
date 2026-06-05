@@ -618,7 +618,11 @@
     }
 
     /* ===========================
-       MODAL — Full screen on mobile
+       MODAL
+       Centered on all screen sizes.
+       Video uses aspect-ratio (not
+       the padding-top hack) so it
+       never overflows on mobile.
     =========================== */
     #modal-overlay {
       display: none;
@@ -628,74 +632,53 @@
       background: rgba(0,0,0,0.95);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      align-items: flex-end; /* Bottom sheet on mobile */
+      /* Always centered — no bottom sheet */
+      align-items: center;
       justify-content: center;
-      padding: 0;
+      /* Safe area padding for iPhone notch / home bar */
+      padding: max(1rem, env(safe-area-inset-top))
+               1rem
+               max(1rem, env(safe-area-inset-bottom))
+               1rem;
     }
     #modal-overlay.open { display: flex; }
 
-    @media (min-width: 600px) {
-      #modal-overlay {
-        align-items: center;
-        padding: 1rem;
-      }
-    }
-
     .modal-box {
-      position: relative;
       width: 100%;
+      max-width: 840px;
       background: var(--surface);
       border: 1px solid var(--border);
+      border-radius: var(--radius);
       display: flex;
       flex-direction: column;
-      animation: modal-in 0.35s var(--ease) both;
-      /* Mobile: bottom sheet, full width, max 92vh */
-      max-height: 92vh;
-      border-radius: var(--radius) var(--radius) 0 0;
-    }
-    @media (min-width: 600px) {
-      .modal-box {
-        max-width: 840px;
-        max-height: 90vh;
-        border-radius: var(--radius);
-      }
+      animation: modal-in 0.3s var(--ease) both;
+      /*
+        No max-height here — the box grows to fit the video.
+        The overlay padding above keeps it from touching screen edges.
+      */
     }
 
-    /* Drag handle on mobile */
-    .modal-handle {
-      width: 36px; height: 4px;
-      background: var(--subtle);
-      border-radius: 2px;
-      margin: 10px auto 0;
-      flex-shrink: 0;
-    }
-    @media (min-width: 600px) {
-      .modal-handle { display: none; }
-    }
+    /* Drag handle hidden — we use centered modal instead */
+    .modal-handle { display: none; }
 
     @keyframes modal-in {
-      from { opacity: 0; transform: translateY(32px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @media (min-width: 600px) {
-      @keyframes modal-in {
-        from { opacity: 0; transform: translateY(20px) scale(0.97); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
-      }
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
     }
 
     .modal-header {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.75rem 1.25rem 0.75rem;
+      /* Generous tap-friendly padding */
+      padding: 0.9rem 1rem 0.9rem 1.25rem;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
 
     .modal-title {
       font-family: var(--font-head);
-      font-size: clamp(0.9rem, 3vw, 1.1rem);
+      font-size: clamp(0.85rem, 3vw, 1.05rem);
       font-weight: 700;
       letter-spacing: -0.02em;
       flex: 1;
@@ -705,7 +688,9 @@
     }
 
     .modal-close {
-      width: 32px; height: 32px;
+      /* 44×44 minimum tap target */
+      width: 44px;
+      height: 44px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
       display: flex;
@@ -714,39 +699,53 @@
       color: var(--muted);
       transition: all 0.2s;
       flex-shrink: 0;
-      /* Larger tap target on mobile */
-      min-width: 44px;
-      min-height: 44px;
     }
-    .modal-close:hover, .modal-close:active {
+    .modal-close:hover,
+    .modal-close:active {
       background: var(--surface2);
       color: var(--text);
+      border-color: var(--subtle);
     }
     .modal-close svg { width: 16px; height: 16px; }
 
-    .modal-body {
-      overflow-y: auto;
-      flex: 1;
-      -webkit-overflow-scrolling: touch;
-    }
+    /* No scroll needed — video sizes itself */
+    .modal-body { overflow: hidden; }
 
+    /*
+      KEY FIX: use aspect-ratio instead of padding-top hack.
+      The iframe is NOT position:absolute — it just fills
+      its container which has a defined aspect ratio.
+      This means the modal box grows to exactly fit the
+      video height and never clips or overflows.
+    */
     .modal-video-wrap {
-      position: relative;
-      padding-top: 56.25%;
+      width: 100%;
+      aspect-ratio: 16 / 9;
       background: #000;
+      display: block;
     }
     .modal-video-wrap iframe {
-      position: absolute;
-      inset: 0;
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
       border: none;
+      display: block;
     }
 
+    /* Poster: contain within viewport height */
+    .modal-poster {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Don't let a tall poster overflow the screen */
+      max-height: calc(100dvh - 120px);
+      overflow: hidden;
+    }
     .modal-poster img {
       width: 100%;
-      max-height: 75vh;
+      height: auto;
+      max-height: calc(100dvh - 120px);
       object-fit: contain;
-      background: #000;
     }
 
     /* ===========================
@@ -1105,18 +1104,12 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
   /* ---- NAVIGATION ---- */
- function navigate(target) {
+  function navigate(target) {
     const newHash = target === 'home' ? '' : '#' + target;
-    if (location.hash !== newHash) {
-      try {
-        history.pushState(null, '', location.pathname + newHash);
-      } catch (e) {
-        // Blocked in sandboxed environments (e.g. Claude preview)
-        // Hash routing still works fine when deployed on GitHub Pages
-      }
-    }
+    if (location.hash !== newHash) history.pushState(null, '', location.pathname + newHash);
     applyRoute(target);
   }
+
   function applyRoute(target) {
     const isHome = !target || target === 'home';
     document.getElementById('page-home').classList.toggle('active', isHome);
