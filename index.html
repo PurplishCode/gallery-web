@@ -595,8 +595,33 @@
       background: #000;
       overflow: hidden;
 
-      /* Mobile: fill remainder of sheet */
+      /*
+        Mobile bottom-sheet video sizing:
+        
+        Google Drive's player has a ~60px bottom control bar that
+        sits INSIDE the iframe. If the iframe is sized to exactly
+        fill the visible area, that bar overlaps the video content.
+        
+        Strategy: size the iframe taller than the visible container
+        so the controls fall below the fold — but clip the container
+        so the black bar under the controls isn't visible.
+        
+        Container height = available sheet space (95dvh - 80px header/handle)
+        Iframe height    = container + 70px (drives controls below fold)
+        The container's overflow:hidden clips the extra 70px.
+      */
       height: calc(95dvh - 80px);
+      position: relative;
+    }
+
+    .modal-video-wrap iframe {
+      width: 100%;
+      /* Extend iframe beyond container so controls aren't clipped over video */
+      height: calc(100% + 72px);
+      border: none;
+      display: block;
+      position: absolute;
+      top: 0; left: 0;
     }
 
     @media (min-width: 640px) {
@@ -604,15 +629,17 @@
         height: auto;
         aspect-ratio: 16 / 9;
         max-height: calc(100dvh - 3rem - 56px);
+        position: relative;
+      }
+      .modal-video-wrap iframe {
+        /* Desktop: normal sizing, no offset needed */
+        position: static;
+        height: 100%;
+        width: 100%;
       }
     }
 
-    .modal-video-wrap iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      display: block;
-    }
+
 
     /* Poster modal */
     .modal-poster {
@@ -955,7 +982,7 @@
   /* ================================================================
      NAVIGATION
   ================================================================ */
-function navigate(target) {
+  function navigate(target) {
     const newHash = target === 'home' ? '' : '#' + target;
     if (location.hash !== newHash) history.pushState(null, '', location.pathname + newHash);
     applyRoute(target);
